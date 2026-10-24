@@ -1,1 +1,116 @@
-{}
+{
+  "calls": [
+    {
+      "date": "Day 1",
+      "meds_taken": true,
+      "ate": true,
+      "mood": "good",
+      "pain_or_fall": null,
+      "concerns": [
+        "none mentioned"
+      ],
+      "urgency": "ok",
+      "summary_text": "Margaret is doing well and will be checked in with again soon.",
+      "trend_flags": []
+    },
+    {
+      "date": "Day 2",
+      "meds_taken": true,
+      "ate": true,
+      "mood": "ok",
+      "pain_or_fall": "my knee is a bit sore today, nothing much.",
+      "concerns": [
+        "knee sore"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is doing fine, but her knee is sore today.",
+      "trend_flags": []
+    },
+    {
+      "date": "Day 3",
+      "meds_taken": true,
+      "ate": false,
+      "mood": "good",
+      "pain_or_fall": "My knee still hurts when I climb stairs.",
+      "concerns": [
+        "I'm a little tired"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is doing okay, but is feeling a bit tired and experiencing knee pain when climbing stairs.",
+      "trend_flags": [
+        "pain reported 2 days in a row"
+      ]
+    },
+    {
+      "date": "Day 4",
+      "meds_taken": false,
+      "ate": false,
+      "mood": "low",
+      "pain_or_fall": "Knee is the same",
+      "concerns": [
+        "Feeling a bit down",
+        "It is quiet here"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is feeling down and forgot to take her morning pills, but her knee is the same.",
+      "trend_flags": [
+        "pain reported 3 days in a row",
+        "skipped meals 2 times this week"
+      ]
+    },
+    {
+      "date": "Day 5",
+      "meds_taken": false,
+      "ate": false,
+      "mood": "low",
+      "pain_or_fall": "The knee is bad today",
+      "concerns": [
+        "feeling lonely"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is feeling lonely and hasn't taken her pills yet.",
+      "trend_flags": [
+        "pain reported 4 days in a row",
+        "missed meds 2 times this week",
+        "low mood 2 days in a row"
+      ]
+    },
+    {
+      "date": "Day 6",
+      "meds_taken": false,
+      "ate": false,
+      "mood": "low",
+      "pain_or_fall": "knee hurts a lot",
+      "concerns": [
+        "knee hurts",
+        "feeling sad"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is feeling sad and has a lot of knee pain, and she had a cracker for breakfast.",
+      "trend_flags": [
+        "pain reported 5 days in a row",
+        "missed meds 3 times this week",
+        "low mood 3 days in a row"
+      ]
+    },
+    {
+      "date": "Day 7",
+      "meds_taken": false,
+      "ate": false,
+      "mood": "low",
+      "pain_or_fall": "Knee is still painful",
+      "concerns": [
+        "skipped pills",
+        "did not eat much"
+      ],
+      "urgency": "watch",
+      "summary_text": "Margaret is feeling low, her knee is still painful, and she skipped her pills and didn't eat much.",
+      "trend_flags": [
+        "pain reported 6 days in a row",
+        "missed meds 4 times this week",
+        "low mood 4 days in a row"
+      ]
+    }
+  ],
+  "questions": []
+}
