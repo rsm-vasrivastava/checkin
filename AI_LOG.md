@@ -68,3 +68,9 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
   4. "I feel dizzy" was also being recorded as pain because `dizzy` was in the pain word list. Removed.
 - **Verified:** mutation check (disabling concern detection makes 13 tests fail); real-model runs of a healthy call (no concerns, urgency ok) and the live-test sentence (concern "Difficulty hearing", urgency watch, honest closing), repeated 3 times.
 - **Still imperfect:** the backstop is English-only; Spanish/Hindi get fixed questions but only the generic closing. The model's one-sentence reactions can still be overly cheerful or slightly off.
+
+## First real Vapi request (outbound call attempt)
+- **Result 1, caught only by the real API:** HTTP 400 `assistant.model.each value in tools.property description should not exist`. The Vapi docs page we used showed a `description` field on the `endCall` tool, but the API rejects it inside `model.tools`. We removed it. Lesson: docs pages summarized by a tool are not a substitute for the API's own validation errors.
+- **Result 2:** after that fix the request passed schema validation, then Vapi refused to start the call: "Numbers bought on Vapi have a daily outbound call limit. Import your own Twilio numbers to scale without limits." This is an account/number limit, not a code bug, so no call was placed and we did not retry in a loop.
+- **Verified before the attempt:** the ngrok tunnel reaches our server, and `/vapi/end` returns 401 without the shared secret.
+- **Not verified:** a completed Vapi call, the `/vapi/end` webhook receiving a real report, and the urgent-alert path on a real call.

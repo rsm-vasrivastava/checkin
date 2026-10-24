@@ -58,7 +58,7 @@ def build_request(name: str, language: str, history: list[dict], questions: list
             "model": {
                 "provider": config.VAPI_MODEL_PROVIDER, "model": config.VAPI_MODEL,
                 "messages": [{"role": "system", "content": build_prompt(name, language, history, questions)}],
-                "tools": [{"type": "endCall", "description": "End the call after saying goodbye, or immediately after the emergency message."}],
+                "tools": [{"type": "endCall"}],  # (Vapi rejects a `description` here, despite the docs page)
             },
             "voice": {"provider": "openai", "voiceId": "alloy"},
             "transcriber": {"provider": "deepgram", "language": STT_LANG.get(language, "en")},
