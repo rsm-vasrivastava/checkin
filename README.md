@@ -2,7 +2,7 @@
 
 **Track: No App.** A daily AI phone call that checks in on older adults living alone, remembers past calls, spots worrying trends, and keeps family in the loop by text.
 
-> Runs on a local open-source model, so health conversations never leave the device.
+> **Privacy:** in voice mode and `simulate.py` the model and speech-to-text run locally, so conversations stay on the device. **Phone calls via Vapi do not**: audio and transcripts pass through Vapi and its speech/language providers (see Safety design).
 
 ## Problem and who it's for
 Millions of older adults live alone. Missed medication, skipped meals, a creeping low mood or a fall can go unnoticed for days, and family far away can't tell the difference between "fine" and "not fine". CheckIn is for the older adult (who just answers the phone) and the family caregiver (who gets a short text).
@@ -12,14 +12,13 @@ Millions of older adults live alone. Missed medication, skipped meals, a creepin
  Cron / trigger_call.py            Senior's any phone (landline OK)
         |                                   ^   |
         v                                   |   | speech
-  POST /call --> Twilio places call --------+   v
-                                       POST /voice, /gather   (stateless webhooks)
-                                                |
-                          local model (Ollama) writes each 1-2 sentence reply
-                          (meds, meals, mood, pain; caregiver questions; follow-ups
-                           from recent calls; max 6 turns)
-                                                |
-                                      call ends (or POST /status)
+  vapi_call.py --> Vapi places call --------+   v
+  (our prompt: name, last trend flags,   Vapi runs the live conversation
+   queued caregiver questions, safety)   (meds, meals, mood, pain; follow-ups;
+                                          max 6 turns; urgent script)
+                                                |  POST /vapi/end  (our server)
+                                                |  live: urgent words -> alert now
+                                                |  end:  transcript
                                                 v
               summarize -> {meds_taken, ate, mood, pain_or_fall, concerns,
                             urgency, summary_text}  -> data/<senior>.json
@@ -31,22 +30,22 @@ Millions of older adults live alone. Missed medication, skipped meals, a creepin
    Caregiver replies by SMS -> POST /sms -> "questions for next call" queue
 ```
 
-**Two front ends, one brain.** The production design is the **phone call** (Twilio): works on any phone, no install. For a free demo without a Twilio number there is **voice mode**: the same conversation through the Mac's microphone and speaker, with caregiver alerts as free push notifications (ntfy). Both use the same `llm.py`, `memory.py` and safety logic (`pipeline.run_conversation`).
+**Three front ends, one brain.** The production design is the **phone call**: works on any phone, no install. Calls run through **[Vapi](https://vapi.ai)** (`vapi_call.py`): Vapi handles the telephony, speech recognition, voice and the live conversation, from an assistant we define with our own check-in prompt and safety rules. Everything that makes CheckIn CheckIn is our own code: the memory across calls, the trend detection, the summaries, the caregiver questions and the alerts (`memory.py`, `llm.py`, `pipeline.py`, `/vapi/end`). The original Twilio webhook implementation (`app.py`) is still in the repo, and **voice mode** (`voice_mode.py`) is a free fully-local front end that uses the Mac's microphone and speaker. All of them share the same memory, trend and alert code.
 
 ## Why it requires no screen
 The senior uses a phone call, nothing else. The caregiver uses text messages, nothing else: summaries come in as SMS and questions go back as SMS. No app, no login, no dashboard.
 
 ## Scalability
-Works on any phone, including landlines and flip phones, with zero install. Webhooks are stateless (per-call state is a small file keyed by the Twilio CallSid), storage is plain JSON, and a call costs only telephony plus a small local model. Spanish and Hindi are supported by setting `SENIOR_LANGUAGE` (speech recognition, voice, and the model's replies all switch).
+Works on any phone, including landlines and flip phones, with zero install. The server only receives webhooks (per-call state is a small file keyed by the call id), storage is plain JSON, and a call costs telephony plus Vapi's per-minute fee; our own code adds a small local model for summaries. Spanish and Hindi are supported by setting `SENIOR_LANGUAGE` (speech recognition, voice, and the model's replies all switch).
 
 ## Innovation
 Not a one-off robocall: CheckIn has longitudinal memory (it follows up on "your knee" from yesterday) and a two-way caregiver loop over SMS (family texts a question, it is asked on the next call and the answer comes back in the summary). Trends such as "pain reported 6 days in a row" give family an early warning before anything is urgent.
 
 ## Real-world impact
-Targets medication adherence, loneliness and early detection for older adults living alone, and gives remote caregivers a daily, low-effort signal instead of anxiety. Because the model (and, in voice mode, the speech-to-text) runs locally, sensitive health conversations are not sent to a cloud AI provider (the phone carrier still carries the call and texts).
+Targets medication adherence, loneliness and early detection for older adults living alone, and gives remote caregivers a daily, low-effort signal instead of anxiety. In voice mode and `simulate.py` the model and speech-to-text run locally, so health conversations stay on the device. On real phone calls they do not: Vapi and the providers it uses for speech and language process the audio and transcript, and the carrier carries the call. Our summaries are still generated by our own local model.
 
 ## Setup
-Requires Python 3.13 and [Ollama](https://ollama.com). Phone calls also need a Twilio account and ngrok; voice mode needs neither.
+Requires Python 3.13 and [Ollama](https://ollama.com). Phone calls also need a Vapi account and ngrok; voice mode needs neither.
 ```bash
 python3.13 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -71,7 +70,16 @@ To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, an
 ```
 Speech output is the macOS `say` command; speech input is [faster-whisper](https://github.com/SYSTRAN/faster-whisper) running offline (downloads a ~140 MB model on first run). It stops listening after a pause, retries once on silence, and ends after 6 turns. In ntfy mode the loop is one-way: use `--question` to queue a caregiver question.
 
-**Live phone call (production path):**
+**Live phone call via Vapi (production path):**
+```bash
+.venv/bin/uvicorn checkin.app:app --port 8000
+ngrok http 8000                                # put the https URL in PUBLIC_URL in .env
+.venv/bin/python vapi_call.py --dry-run        # inspect the request first
+.venv/bin/python vapi_call.py                  # calls SENIOR_PHONE
+```
+Vapi needs `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID` and a `VAPI_WEBHOOK_SECRET` (any long random string; Vapi sends it back on every webhook and `/vapi/end` rejects requests without it). **Outbound calls need a phone number imported into Vapi** (Twilio, Telnyx or DIDWW); Vapi's free numbers are inbound-only.
+
+**Live phone call via Twilio webhooks (original path, still works):**
 ```bash
 .venv/bin/uvicorn checkin.app:app --port 8000
 ngrok http 8000                               # put the https URL in PUBLIC_URL in .env
@@ -84,12 +92,14 @@ On a Twilio trial account, verify both the senior's and caregiver's numbers firs
 - Never gives medical advice: it says "I'll let your family know."
 - A fall, chest pain or trouble breathing triggers a fixed script (not model-generated) that says it is alerting family and suggests 911, then ends the call and sends an URGENT SMS immediately. Detection is a keyword list, so it can miss phrasings and can false-alarm.
 - Max 6 turns; ends politely on goodbye/stop; no speech twice in a row ends the call and is recorded as "no response" (urgency "watch").
-- Voice mode uses the same code path, so the same limits and urgent script apply. The urgent alert is sent the moment the emergency is mentioned.
+- On Vapi calls, the 6-turn limit and the urgent script are instructions in the assistant's prompt, plus a hard 5-minute cap and a 20-second silence timeout. Unlike our own loop, the cap on turns is not enforced in code. A final transcript containing a fall / chest pain / breathing phrase triggers an urgent alert immediately from our server (keyword list), independent of what the assistant says.
+- Voice mode uses the same code path as the terminal simulator, so the same limits and urgent script apply. The urgent alert is sent the moment the emergency is mentioned.
 - ntfy topics are public by name: anyone who knows the topic can read the alerts, so use a long random one. Summaries then pass through ntfy.sh, which weakens the "stays on the device" claim for that channel (SMS goes through Twilio and the carrier instead).
-- Limitations: it is **not** a medical or emergency service and must not replace one. Small local models make mistakes, so we validate output and backstop key fields with keyword rules (English only so far; Spanish and Hindi are largely untested). Trend counting is rule-based code, not the model. One senior per deployment, no Twilio signature validation, no scheduler (use cron to hit `/call`), and call/SMS content still passes through the phone carrier and Twilio.
+- Vapi calls send audio and transcripts to Vapi and its speech/language providers, which weakens the privacy story compared with voice mode; this is a trade for real phone calls with no install.
+- Limitations: it is **not** a medical or emergency service and must not replace one. Small local models make mistakes, so we validate output and backstop key fields with keyword rules (English only so far; Spanish and Hindi are largely untested). Trend counting is rule-based code, not the model. One senior per deployment, no Twilio signature validation, no scheduler (use cron to run `vapi_call.py`), and call/SMS content still passes through the phone carrier and Twilio.
 
 ## How we used AI coding tools
-We built this with Claude Code as a pair programmer (full detail in [AI_LOG.md](AI_LOG.md)). It wrote the first version of every module; we tested everything against fake models before real ones. Things we caught: a missing-key error hidden by a "never go silent" fallback, a mislabelled "no response" case, a too-broad "fall" emergency keyword, and, after switching to a local model, wrong trend counts and invented patterns from llama3.2. That led us to move counting and urgency into plain code and keep the model for conversation and extraction. When we may not have a Twilio number, the AI helped add voice mode by first pulling the conversation loop out of `simulate.py` into one shared function, so the two front ends can't drift apart.
+We built this with Claude Code as a pair programmer (full detail in [AI_LOG.md](AI_LOG.md)). It wrote the first version of every module; we tested everything against fake models before real ones. Things we caught: a missing-key error hidden by a "never go silent" fallback, a mislabelled "no response" case, a too-broad "fall" emergency keyword, and, after switching to a local model, wrong trend counts and invented patterns from llama3.2. That led us to move counting and urgency into plain code and keep the model for conversation and extraction. When Twilio was too costly, the AI helped add Vapi for live calls (after reading Vapi's current docs for the exact request format) and a free voice mode by first pulling the conversation loop out of `simulate.py` into one shared function, so the two front ends can't drift apart.
 
 ## Future work
 Scheduler and multiple seniors; two-way caregiver questions over ntfy; Twilio signature validation; tested Spanish/Hindi; a better local model; a weekly digest; escalation to a second caregiver if the first doesn't respond; confusion/cognitive-change detection from speech.
