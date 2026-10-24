@@ -20,3 +20,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 MODEL = os.getenv("CHECKIN_MODEL", "claude-sonnet-5-5")  # used only when LLM_PROVIDER=anthropic
 MAX_TURNS = 6
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
+# Caregiver alerts: "sms" (Twilio, production) or "ntfy" (free push). Defaults to sms when Twilio is configured.
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
+NOTIFY_CHANNEL = os.getenv("NOTIFY_CHANNEL", "sms" if TWILIO_SID else "ntfy").lower()

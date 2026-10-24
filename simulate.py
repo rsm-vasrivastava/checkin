@@ -6,7 +6,7 @@
 import argparse
 import json
 
-from checkin import config, llm, memory, pipeline
+from checkin import config, memory, pipeline
 
 SIM_ID = "simulated"
 
@@ -29,30 +29,19 @@ def say(text: str) -> None:
 def run_call(name: str, language: str, sid: str, replies: list[str] | None = None,
              when: str | None = None, quiet: bool = False) -> dict:
     """One call. replies=None -> read from the keyboard; else use the scripted replies."""
-    history, questions = memory.load_history(sid, 7), memory.get_questions(sid)
-    transcript, silent = [], 0
-    for turn in range(1, config.MAX_TURNS + 1):
-        out = llm.next_turn(name, language, history, questions, transcript, turn)
-        transcript.append({"role": "ai", "text": out["say"]})
+    def speak(text: str) -> None:
         if not quiet:
-            say(out["say"])
-        if out["end"]:
-            break
+            say(text)
+
+    def listen() -> str:
         if replies is None:
-            reply = input(f"  {name}: ").strip()
-        else:
-            reply = replies.pop(0) if replies else "Goodbye."
-            if not quiet:
-                print(f"  {name}: {reply}")
-        if not reply:  # no speech: retry once, then give up
-            silent += 1
-            if silent >= 2:
-                break  # finish_call marks 'no response' if the senior never spoke
-            transcript.append({"role": "ai", "text": "(no speech detected, asked again)"})
-            continue
-        silent = 0
-        transcript.append({"role": "senior", "text": reply})
-    return pipeline.finish_call(sid, name, language, transcript, when=when)
+            return input(f"  {name}: ")
+        reply = replies.pop(0) if replies else "Goodbye."
+        if not quiet:
+            print(f"  {name}: {reply}")
+        return reply
+
+    return pipeline.run_conversation(name, language, sid, speak, listen, when=when)
 
 
 def show(summary: dict, date: str | None = None) -> None:

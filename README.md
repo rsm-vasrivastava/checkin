@@ -31,6 +31,8 @@ Millions of older adults live alone. Missed medication, skipped meals, a creepin
    Caregiver replies by SMS -> POST /sms -> "questions for next call" queue
 ```
 
+**Two front ends, one brain.** The production design is the **phone call** (Twilio): works on any phone, no install. For a free demo without a Twilio number there is **voice mode**: the same conversation through the Mac's microphone and speaker, with caregiver alerts as free push notifications (ntfy). Both use the same `llm.py`, `memory.py` and safety logic (`pipeline.run_conversation`).
+
 ## Why it requires no screen
 The senior uses a phone call, nothing else. The caregiver uses text messages, nothing else: summaries come in as SMS and questions go back as SMS. No app, no login, no dashboard.
 
@@ -41,16 +43,17 @@ Works on any phone, including landlines and flip phones, with zero install. Webh
 Not a one-off robocall: CheckIn has longitudinal memory (it follows up on "your knee" from yesterday) and a two-way caregiver loop over SMS (family texts a question, it is asked on the next call and the answer comes back in the summary). Trends such as "pain reported 6 days in a row" give family an early warning before anything is urgent.
 
 ## Real-world impact
-Targets medication adherence, loneliness and early detection for older adults living alone, and gives remote caregivers a daily, low-effort signal instead of anxiety. Because the model runs locally, sensitive health conversations are not sent to a cloud AI provider (the phone carrier still carries the call and texts).
+Targets medication adherence, loneliness and early detection for older adults living alone, and gives remote caregivers a daily, low-effort signal instead of anxiety. Because the model (and, in voice mode, the speech-to-text) runs locally, sensitive health conversations are not sent to a cloud AI provider (the phone carrier still carries the call and texts).
 
 ## Setup
-Requires Python 3.13, [Ollama](https://ollama.com), and (for live calls) a Twilio account and ngrok.
+Requires Python 3.13 and [Ollama](https://ollama.com). Phone calls also need a Twilio account and ngrok; voice mode needs neither.
 ```bash
 python3.13 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ollama pull llama3.2            # then keep `ollama serve` running
 cp .env.example .env            # fill in your values; never commit .env
 ```
+Caregiver alerts: set `NOTIFY_CHANNEL=sms` (Twilio text, two-way) or `NOTIFY_CHANNEL=ntfy` (free push). For ntfy, set `NTFY_TOPIC` to a long random name, install the free ntfy app (or open `https://ntfy.sh/<topic>`) and subscribe to it, then run `.venv/bin/python -m checkin.notify` to send a test alert.
 To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, and `pip install anthropic`.
 
 ## Demo
@@ -60,7 +63,15 @@ To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, an
 .venv/bin/python simulate.py --question "Did you call your sister?"
 .venv/bin/python simulate.py --days 7        # a scripted week -> trend flags (about 1 minute)
 ```
-**Live call:**
+**Voice mode (free, spoken, no Twilio):**
+```bash
+.venv/bin/python voice_mode.py                # talk to CheckIn; allow microphone access for your terminal
+.venv/bin/python voice_mode.py --question "Did you call your sister?"
+.venv/bin/python voice_mode.py --lang es      # Spanish (voice mode only; untested)
+```
+Speech output is the macOS `say` command; speech input is [faster-whisper](https://github.com/SYSTRAN/faster-whisper) running offline (downloads a ~140 MB model on first run). It stops listening after a pause, retries once on silence, and ends after 6 turns. In ntfy mode the loop is one-way: use `--question` to queue a caregiver question.
+
+**Live phone call (production path):**
 ```bash
 .venv/bin/uvicorn checkin.app:app --port 8000
 ngrok http 8000                               # put the https URL in PUBLIC_URL in .env
@@ -73,10 +84,12 @@ On a Twilio trial account, verify both the senior's and caregiver's numbers firs
 - Never gives medical advice: it says "I'll let your family know."
 - A fall, chest pain or trouble breathing triggers a fixed script (not model-generated) that says it is alerting family and suggests 911, then ends the call and sends an URGENT SMS immediately. Detection is a keyword list, so it can miss phrasings and can false-alarm.
 - Max 6 turns; ends politely on goodbye/stop; no speech twice in a row ends the call and is recorded as "no response" (urgency "watch").
+- Voice mode uses the same code path, so the same limits and urgent script apply. The urgent alert is sent the moment the emergency is mentioned.
+- ntfy topics are public by name: anyone who knows the topic can read the alerts, so use a long random one. Summaries then pass through ntfy.sh, which weakens the "stays on the device" claim for that channel (SMS goes through Twilio and the carrier instead).
 - Limitations: it is **not** a medical or emergency service and must not replace one. Small local models make mistakes, so we validate output and backstop key fields with keyword rules (English only so far; Spanish and Hindi are largely untested). Trend counting is rule-based code, not the model. One senior per deployment, no Twilio signature validation, no scheduler (use cron to hit `/call`), and call/SMS content still passes through the phone carrier and Twilio.
 
 ## How we used AI coding tools
-We built this with Claude Code as a pair programmer (full detail in [AI_LOG.md](AI_LOG.md)). It wrote the first version of every module; we tested everything against fake models before real ones. Things we caught: a missing-key error hidden by a "never go silent" fallback, a mislabelled "no response" case, a too-broad "fall" emergency keyword, and, after switching to a local model, wrong trend counts and invented patterns from llama3.2. That led us to move counting and urgency into plain code and keep the model for conversation and extraction.
+We built this with Claude Code as a pair programmer (full detail in [AI_LOG.md](AI_LOG.md)). It wrote the first version of every module; we tested everything against fake models before real ones. Things we caught: a missing-key error hidden by a "never go silent" fallback, a mislabelled "no response" case, a too-broad "fall" emergency keyword, and, after switching to a local model, wrong trend counts and invented patterns from llama3.2. That led us to move counting and urgency into plain code and keep the model for conversation and extraction. When we may not have a Twilio number, the AI helped add voice mode by first pulling the conversation loop out of `simulate.py` into one shared function, so the two front ends can't drift apart.
 
 ## Future work
-Scheduler and multiple seniors; Twilio signature validation; tested Spanish/Hindi; a better local model; a weekly digest; escalation to a second caregiver if the first doesn't respond; confusion/cognitive-change detection from speech.
+Scheduler and multiple seniors; two-way caregiver questions over ntfy; Twilio signature validation; tested Spanish/Hindi; a better local model; a weekly digest; escalation to a second caregiver if the first doesn't respond; confusion/cognitive-change detection from speech.
