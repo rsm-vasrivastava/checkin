@@ -1,0 +1,19 @@
+"""Settings loaded from .env."""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TWILIO_SID = os.getenv("TWILIO_SID", "")
+TWILIO_TOKEN = os.getenv("TWILIO_TOKEN", "")
+TWILIO_NUMBER = os.getenv("TWILIO_NUMBER", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+CAREGIVER_PHONE = os.getenv("CAREGIVER_PHONE", "")
+SENIOR_PHONE = os.getenv("SENIOR_PHONE", "")
+SENIOR_NAME = os.getenv("SENIOR_NAME", "Friend")
+SENIOR_LANGUAGE = os.getenv("SENIOR_LANGUAGE", "en")
+PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
+
+MODEL = os.getenv("CHECKIN_MODEL", "claude-sonnet-5-5")
+MAX_TURNS = 6
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
