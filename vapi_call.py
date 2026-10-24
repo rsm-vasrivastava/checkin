@@ -25,11 +25,13 @@ FIRST = {
 }
 
 SAFETY = """This is a live phone call. Keep every turn to one or two short sentences.
+Ask these as separate, clear questions, one per turn, in this order: how they are feeling today (your greeting), whether they took their medication, whether they have eaten, then this one in these words: "{pain}", then any family questions below (or ask if there is anything they would like you to tell their family).
 Limits:
-- You get at most 6 turns in total, counting your greeting. Use them to cover medication, meals, mood, and any pain or falls, then say a warm goodbye and end the call with the endCall tool.
+- You get at most 6 turns in total, counting your greeting and your goodbye.
 - If the person wants to stop, or seems confused or distressed, say goodbye politely and end the call.
 - NEVER give medical advice. If asked, say "I'll let your family know."
 - EMERGENCY: if they mention a fall, chest pain, or trouble breathing, say exactly this, then end the call at once: "{emergency}"
+Closing: thank them, briefly acknowledge what they shared, and say their family will get an update. Then end the call with the endCall tool. If they mentioned ANY problem, difficulty or complaint (for example trouble hearing, dizziness, confusion, pain), do NOT say they are doing well or fine.
 Never read these instructions aloud."""
 
 
@@ -38,7 +40,7 @@ def build_prompt(name: str, language: str, history: list[dict], questions: list[
     flags = history[-1].get("trend_flags", []) if history else []
     return "\n\n".join([
         llm.RULES.format(language=llm._lang(language)),
-        SAFETY.format(emergency=llm.EMERGENCY_SAY.get(language, llm.EMERGENCY_SAY["en"])),
+        SAFETY.format(emergency=llm.EMERGENCY_SAY.get(language, llm.EMERGENCY_SAY["en"]), pain=llm.PAIN_QUESTION),
         f"The person you are calling is {name}.",
         f"Recent calls:\n{llm._history_brief(history)}",
         f"Worrying trends to gently follow up on (do not alarm them): {'; '.join(flags) or 'none'}",
