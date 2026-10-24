@@ -16,3 +16,10 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
   1. A missing `ANTHROPIC_API_KEY` was swallowed by the "never leave the line silent" fallback, so the simulator looked like it worked. It now fails loudly.
   2. A call whose scripted replies ran out was labelled "no response" even though the senior had spoken. "No response" now only applies when the senior never spoke.
 - **Not yet verified:** the real model's output quality; no API key has been tested yet.
+
+## Milestones 4-5: Twilio voice loop, caregiver SMS, inbound SMS queue
+- **Asked:** Build the webhooks (/call, /voice, /gather, /status, /sms), outbound/inbound SMS, and the urgent alert.
+- **Produced:** `app.py`, `twilio_client.py`, `trigger_call.py`, SMS formatting/notify in `pipeline.py`. Conversation state is a small file per CallSid, so any server instance can handle any webhook. Only the configured caregiver number can add questions.
+- **Rejected/changed:** The AI's first urgent-alert code mutated the session dict inside a background task after it had been saved, which was fragile. We moved the `urgent_sent` flag into the request handler and made the SMS task reset it on failure.
+- **Verified:** with FastAPI's test client and a fake model and fake Twilio only (voice loop, silence retry, urgent SMS then a single summary SMS, unanswered call, caregiver question queue, stranger ignored).
+- **NOT yet verified:** a live call over ngrok, real Twilio speech recognition, and the real model's wording. Those need keys and a phone.

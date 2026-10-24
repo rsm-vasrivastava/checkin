@@ -68,3 +68,24 @@ def clear_questions(sid: str) -> None:
 def reset(sid: str) -> None:
     if os.path.exists(_path(sid)):
         os.remove(_path(sid))
+
+
+# --- per-call session state (Twilio webhooks are separate HTTP requests; keyed by CallSid) ---
+
+def _session_path(call_sid: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9]", "", call_sid)
+    return os.path.join(config.DATA_DIR, "calls", f"{safe}.json")
+
+
+def load_session(call_sid: str) -> dict | None:
+    try:
+        with open(_session_path(call_sid)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def save_session(call_sid: str, state: dict) -> None:
+    os.makedirs(os.path.dirname(_session_path(call_sid)), exist_ok=True)
+    with open(_session_path(call_sid), "w") as f:
+        json.dump(state, f, ensure_ascii=False)
