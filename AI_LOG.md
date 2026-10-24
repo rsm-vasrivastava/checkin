@@ -23,3 +23,14 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
 - **Rejected/changed:** The AI's first urgent-alert code mutated the session dict inside a background task after it had been saved, which was fragile. We moved the `urgent_sent` flag into the request handler and made the SMS task reset it on failure.
 - **Verified:** with FastAPI's test client and a fake model and fake Twilio only (voice loop, silence retry, urgent SMS then a single summary SMS, unanswered call, caregiver question queue, stranger ignored).
 - **NOT yet verified:** a live call over ngrok, real Twilio speech recognition, and the real model's wording. Those need keys and a phone.
+
+## Switch to a local model (Ollama, llama3.2)
+- **Why:** we have no Anthropic API key. Asked the AI to replace the provider with Ollama over plain HTTP, keep one `call_model()` with `LLM_PROVIDER` (ollama default, anthropic optional), use `format: "json"` for structured output, validate everything, fall back to safe defaults.
+- **What we saw when we ran `simulate.py --days 7` on llama3.2 (first attempt):** the model's own trend flags were wrong. It said "knee pain 3 days in a row" on day 7 when the pain had been reported for 6 days, and on day 2 it invented "missed meds 2 times" and "mood declining" before either had happened. Per-call extraction was also noisy: "I forgot my pills" came out as `null`, "I took my pills" as `false`, and "no pain" was stored as a pain description.
+- **What we changed (and why):**
+  1. Trend detection now counts streaks and misses in plain code over the validated fields. The model only does per-call extraction. Honest tradeoff: the "AI compares calls" part is now rules, because the small model could not count.
+  2. Added a keyword backstop in `summarize()` for meds, meals, pain and mood taken from the senior's own words, and urgency is derived from those fields in code.
+  3. `next_turn()` now returns plain text (1-2 sentences, trimmed in code); ending the call and the emergency script (EN/ES/HI) are decided in code, not by the model.
+- **Result:** after tuning, the week's flags match the scripted ground truth: pain 6 days in a row, missed meds and low mood growing. Normal and fall conversations ran end to end against the local model.
+- **Caught on review:** the first emergency word list included bare "fall", which would have sent an URGENT text for "I fall asleep early"; narrowed it. 
+- **Still imperfect:** the extraction is non-deterministic (e.g. day-3 mood flipped between "ok" and "good" across runs) and the backstop regexes are English-only; Spanish and Hindi are untested.

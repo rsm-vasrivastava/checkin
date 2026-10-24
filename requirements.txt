@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 twilio
-anthropic
+# anthropic   (optional: only if LLM_PROVIDER=anthropic)
 python-dotenv
 python-multipart
+requests

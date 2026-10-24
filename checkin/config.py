@@ -14,6 +14,9 @@ SENIOR_NAME = os.getenv("SENIOR_NAME", "Friend")
 SENIOR_LANGUAGE = os.getenv("SENIOR_LANGUAGE", "en")
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 
-MODEL = os.getenv("CHECKIN_MODEL", "claude-sonnet-5-5")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()  # "ollama" (local, no key) or "anthropic"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+MODEL = os.getenv("CHECKIN_MODEL", "claude-sonnet-5-5")  # used only when LLM_PROVIDER=anthropic
 MAX_TURNS = 6
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
