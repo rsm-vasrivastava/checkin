@@ -7,7 +7,6 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
 - **Produced:** Folder layout, config.py, requirements.txt, README and AI_LOG stubs.
 - **Changed/rejected:** The AI added `python-multipart` (FastAPI needs it to read Twilio's form-encoded webhooks), which was not in our brief. Our one-line existing README was replaced by a stub.
 - **Bugs caught:** none at this stage; nothing had logic yet beyond imports.
-- **Note:** the team still needs to add anything it personally changed or rejected during review.
 
 ## Milestone 2: llm.py, memory.py, simulate.py
 - **Asked:** Build the Claude calls (next_turn, summarize, detect_trends), JSON-file memory with a question queue, and a terminal mock-call (`simulate.py`) as our backup demo.
@@ -82,3 +81,38 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
 - **Caught on the way:** the Vapi docs page for the dynamic-assistant guide 404'd, so the `assistant-request` request/response format came from the events page; the live call confirmed it. 33 tests pass (`tests/test_vapi.py` covers secret checks, nothing-else-exposed, fresh memory in the prompt, stranger refused, live urgent alert once, idempotent report).
 - **Rough edges seen in the live transcript:** Vapi's own model split a question ("Did you take ... / Margaret?") and ended with an awkward half-sentence; the 6-turn limit is a prompt instruction, not enforced in code; the team confirmed the summary alert arrived via ntfy on a phone, and the urgent path has since been verified on a real call (below). The hearing-difficulty case has not been tested on a real call.
 - **Urgent path verified on a real call:** the senior said "I fell in the kitchen today"; the final user transcript reached `/vapi/end` mid-call (15:51:34), the team received the URGENT ntfy while the call was live, the assistant ended the call itself (`assistant-ended-call`), and the saved summary was `urgency: urgent` with `pain_or_fall: "fell in the kitchen"` and a matching concern. The post-call summary alert also arrived. One wrinkle: the summary text said she "is feeling low", which she never said, i.e. the local model over-reads; the structured urgency and pain fields were right.
+
+## Human decisions and review (written by the team)
+
+### Tools we used
+
+- **Claude Code** (Sonnet 5.5) in the Ghostty terminal wrote and tested almost all the code.
+- **Claude (chat)** helped us pick a track, plan the project around the judging criteria, and write the Claude Code prompts.
+- We gave Claude Code one detailed spec up front, covering the track rules, judging criteria, milestones and safety rules, instead of asking for features piece by piece.
+
+### What was distinctive about our approach
+
+- **Mock mode first:** we had Claude Code build a terminal simulator before any phone integration, so the core logic was testable and we always had a working backup demo.
+- **AI for conversation, code for safety:** the small local model miscounted trends (it said "pain 3 days" when the script had 6, and invented missed meds). We kept the AI for understanding speech and moved trend counting, urgency and the emergency script into plain code. Safety decisions shouldn't depend on a model guessing.
+- **Humans tested it live:** automated tests passed, but when we spoke to voice mode ourselves, we caught bugs the tests missed.
+- **Three front ends, one brain:** the same memory, trend and safety logic runs behind a real phone call (Vapi), a speaker-based voice mode, and a terminal simulator. That gave us a working fallback at every stage.
+
+### Decisions we made when plans changed
+
+- **No API key → local model.** We had no Anthropic API key, so we switched to Llama 3.2 running locally through Ollama. Side benefit: the AI conversation stays on our machine.
+- **Twilio required payment → voice mode plus ntfy.** Twilio's trial account no longer includes a phone number, so we built a speaker-based voice mode with free push alerts to the caregiver, and kept the Twilio phone code as the production design.
+- **Real phone calls via Vapi, flipped to inbound.** Twilio wanted payment, and outbound calling through Vapi wasn't free either. We found that a free Vapi number could *receive* calls, so we flipped the design: the senior calls CheckIn instead of CheckIn calling her. Vapi handles the phone line and speech; our own code receives the transcript and does the summary, trend memory and caregiver alert. We verified it on real calls: a normal check-in, and an emergency where the urgent alert reached the caregiver's phone while the call was still live.
+- **Security choice:** our server is exposed to the internet through ngrok during the demo, so we protected the Vapi webhook with a shared secret and kept every other endpoint private. We shut the tunnel down whenever we weren't testing.
+
+### Bugs we caught
+
+- **Summary over-reading:** on the real emergency call, the summary text said the caller was "feeling low," which she never said. The structured fields that drive alerts (urgency, fall) were correct, so the alert was right. This is a limitation of the small local model, and it's why alert decisions come from the structured fields and code rules, not the free-text summary.
+- **Missed hearing concern.** In a live test, "Margaret" said she had trouble hearing her family. The AI ignored it, told her she was "doing well," and logged no concerns. We had Claude Code fix it so any reported difficulty becomes a concern, and add tests for it.
+- **Silent failure.** A missing API key was hidden by a fallback, so the simulator looked like it worked when it didn't. It now fails with a clear error.
+- **False alarms.** After the fix, phrases like "No pain" were wrongly logged as concerns. This was caught and filtered.
+- We asked Claude Code to prove the tests work: disabling concern detection made 13 of 22 tests fail.
+
+### What we'd do differently
+
+- Check phone-service and API costs and trial limits before the event. We lost about an hour discovering that Twilio's trial no longer includes a number and that we had no LLM API key.
+- Test the riskiest dependency (a real phone call) in the first 30 minutes, and decide on the fallback early.
