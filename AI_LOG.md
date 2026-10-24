@@ -5,8 +5,9 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
 ## Milestone 1: skeleton
 - **Asked:** Create the repo skeleton, .gitignore, .env.example, requirements and stubs.
 - **Produced:** Folder layout, config.py, requirements.txt, README and AI_LOG stubs.
-- **Changed/rejected:** (fill in)
-- **Bugs caught:** (fill in)
+- **Changed/rejected:** The AI added `python-multipart` (FastAPI needs it to read Twilio's form-encoded webhooks), which was not in our brief. Our one-line existing README was replaced by a stub.
+- **Bugs caught:** none at this stage; nothing had logic yet beyond imports.
+- **Note:** the team still needs to add anything it personally changed or rejected during review.
 
 ## Milestone 2: llm.py, memory.py, simulate.py
 - **Asked:** Build the Claude calls (next_turn, summarize, detect_trends), JSON-file memory with a question queue, and a terminal mock-call (`simulate.py`) as our backup demo.
