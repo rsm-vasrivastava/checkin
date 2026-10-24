@@ -1,7 +1,12 @@
 fastapi
 uvicorn
 twilio
-# anthropic   (optional: only if LLM_PROVIDER=anthropic)
 python-dotenv
 python-multipart
 requests
+# voice mode (offline speech-to-text and mic input)
+numpy
+sounddevice
+faster-whisper
+# optional: only if LLM_PROVIDER=anthropic
+# anthropic

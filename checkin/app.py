@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, FastAPI, Form, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.twiml.voice_response import Gather, VoiceResponse
 
-from checkin import config, llm, memory, pipeline, twilio_client
+from checkin import config, llm, memory, notify, pipeline, twilio_client
 
 app = FastAPI(title="CheckIn")
 
@@ -61,8 +61,7 @@ def _alert_urgent(call_sid: str, quote: str) -> None:
     """Text the caregiver the moment an emergency is mentioned (background task).
     On failure, clear the flag so the end-of-call SMS carries the URGENT prefix instead."""
     try:
-        twilio_client.send_sms(config.CAREGIVER_PHONE,
-                               f'URGENT - CheckIn: {config.SENIOR_NAME} may need help now. They said: "{quote[:200]}". Please call them.')
+        notify.send("URGENT - CheckIn", pipeline.urgent_text(config.SENIOR_NAME, quote), urgent=True)
     except Exception as e:
         print("urgent SMS failed:", e)
         state = memory.load_session(call_sid)
@@ -116,7 +115,7 @@ def gather(bg: BackgroundTasks, CallSid: str = Form(...), SpeechResult: str = Fo
     out = llm.next_turn(config.SENIOR_NAME, config.SENIOR_LANGUAGE, memory.load_history(_sid(), 7),
                         memory.get_questions(_sid()), state["transcript"], state["turn"])
     state["transcript"].append({"role": "ai", "text": out["say"]})
-    if out["emergency"] and not state["urgent_sent"] and config.CAREGIVER_PHONE:
+    if out["emergency"] and not state["urgent_sent"] and notify.configured():
         state["urgent_sent"] = True
         bg.add_task(_alert_urgent, CallSid, heard)
     memory.save_session(CallSid, state)
