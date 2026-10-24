@@ -32,5 +32,5 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
   2. Added a keyword backstop in `summarize()` for meds, meals, pain and mood taken from the senior's own words, and urgency is derived from those fields in code.
   3. `next_turn()` now returns plain text (1-2 sentences, trimmed in code); ending the call and the emergency script (EN/ES/HI) are decided in code, not by the model.
 - **Result:** after tuning, the week's flags match the scripted ground truth: pain 6 days in a row, missed meds and low mood growing. Normal and fall conversations ran end to end against the local model.
-- **Caught on review:** the first emergency word list included bare "fall", which would have sent an URGENT text for "I fall asleep early"; narrowed it. 
+- **Caught on review:** the first emergency word list included bare "fall", which would have sent an URGENT text for "I fall asleep early"; narrowed it.
 - **Still imperfect:** the extraction is non-deterministic (e.g. day-3 mood flipped between "ok" and "good" across runs) and the backstop regexes are English-only; Spanish and Hindi are untested.
