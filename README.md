@@ -70,6 +70,8 @@ To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, an
 ```
 Speech output is the macOS `say` command; speech input is [faster-whisper](https://github.com/SYSTRAN/faster-whisper) running offline (downloads a ~140 MB model on first run). It stops listening after a pause, retries once on silence, and ends after 6 turns. In ntfy mode the loop is one-way: use `--question` to queue a caregiver question.
 
+> **Status:** the Vapi request is accepted by Vapi's API, but at submission time we had **not completed a live Vapi call**: Vapi refused to start it because numbers bought on Vapi have a daily outbound call limit (importing your own Twilio number removes it). The webhook, prompt and alert logic are tested offline only. The demo we have verified end to end is **voice mode** (and `simulate.py`).
+
 **Live phone call via Vapi (production path):**
 ```bash
 .venv/bin/uvicorn checkin.app:app --port 8000
