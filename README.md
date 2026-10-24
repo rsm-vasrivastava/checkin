@@ -12,9 +12,9 @@ Millions of older adults live alone. Missed medication, skipped meals, a creepin
  Cron / trigger_call.py            Senior's any phone (landline OK)
         |                                   ^   |
         v                                   |   | speech
-  vapi_call.py --> Vapi places call --------+   v
-  (our prompt: name, last trend flags,   Vapi runs the live conversation
-   queued caregiver questions, safety)   (meds, meals, mood, pain; follow-ups;
+  Senior phones the Vapi number ------------+   v
+  (assistant-request: our prompt with     Vapi runs the live conversation
+   fresh trend flags + queued questions)  (meds, meals, mood, pain; follow-ups;
                                           max 6 turns; urgent script)
                                                 |  POST /vapi/end  (our server)
                                                 |  live: urgent words -> alert now
@@ -70,16 +70,19 @@ To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, an
 ```
 Speech output is the macOS `say` command; speech input is [faster-whisper](https://github.com/SYSTRAN/faster-whisper) running offline (downloads a ~140 MB model on first run). It stops listening after a pause, retries once on silence, and ends after 6 turns. In ntfy mode the loop is one-way: use `--question` to queue a caregiver question.
 
-> **Status:** the Vapi request is accepted by Vapi's API, but at submission time we had **not completed a live Vapi call**: Vapi refused to start it because numbers bought on Vapi have a daily outbound call limit (importing your own Twilio number removes it). The webhook, prompt and alert logic are tested offline only. The demo we have verified end to end is **voice mode** (and `simulate.py`).
+> **Status:** the **inbound** Vapi path is verified with a real call: the senior phones a free Vapi number, the assistant answers by name, asks the check-in questions, and when they hang up our server summarizes, saves and alerts. Outbound calls from a free Vapi number were refused by Vapi (daily outbound limit), so the production design here is "senior calls the number" (or outbound via an imported Twilio number).
 
-**Live phone call via Vapi (production path):**
+**Live phone call via Vapi, inbound (verified):** the server for the public tunnel is a *separate minimal app* (`checkin/vapi_app.py`) with one route, `POST /vapi/end`, protected by a shared secret. The admin/Twilio app (`/call`, `/sms`, ...) is never tunneled.
 ```bash
-.venv/bin/uvicorn checkin.app:app --port 8000
-ngrok http 8000                                # put the https URL in PUBLIC_URL in .env
-.venv/bin/python vapi_call.py --dry-run        # inspect the request first
-.venv/bin/python vapi_call.py                  # calls SENIOR_PHONE
+# .env: VAPI_API_KEY, VAPI_PHONE_NUMBER_ID, VAPI_SECRET (long random string), SENIOR_PHONE, NTFY_TOPIC
+# Tab 1: the server (NOT checkin.app, which has /call)
+.venv/bin/uvicorn checkin.vapi_app:app --host 127.0.0.1 --port 8000
+# Tab 2: the tunnel; copy its https URL into PUBLIC_URL in .env (no trailing slash), then restart Tab 1
+ngrok http 8000
+# Tab 3: point your Vapi number at us (re-run if PUBLIC_URL changes; --show prints the config)
+.venv/bin/python vapi_setup.py
 ```
-Vapi needs `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID` and a `VAPI_WEBHOOK_SECRET` (any long random string; Vapi sends it back on every webhook and `/vapi/end` rejects requests without it). **Outbound calls need a phone number imported into Vapi** (Twilio, Telnyx or DIDWW); Vapi's free numbers are inbound-only.
+Then call the Vapi number from `SENIOR_PHONE` (other callers hear "this line is private"). Vapi asks our server for the assistant at the start of every call (`assistant-request`), so the prompt always has the latest trend flags and queued caregiver questions. A fall / chest-pain / breathing phrase in the live transcript alerts the caregiver at once; when the call ends the summary and trend flags follow. Free Vapi numbers can't place outbound calls reliably, so `vapi_call.py` (outbound) needs a number imported into Vapi (Twilio, Telnyx or DIDWW).
 
 **Live phone call via Twilio webhooks (original path, still works):**
 ```bash

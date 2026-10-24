@@ -48,34 +48,45 @@ def build_prompt(name: str, language: str, history: list[dict], questions: list[
     ])
 
 
-def build_request(name: str, language: str, history: list[dict], questions: list[str]) -> dict:
+FIRST_INBOUND = {
+    "en": "Hello {n}, this is CheckIn. How are you feeling today?",
+    "es": "Hola {n}, le habla CheckIn. ¿Cómo se siente hoy?",
+    "hi": "नमस्ते {n}, यह CheckIn है। आज आप कैसे हैं?",
+}
+
+
+def build_assistant(name: str, language: str, history: list[dict], questions: list[str], inbound: bool = False) -> dict:
+    """The inline assistant: our prompt + memory, voice/transcriber, limits, and where reports go."""
+    first = (FIRST_INBOUND if inbound else FIRST).get(language, FIRST["en"]).format(n=name)
     return {
-        "phoneNumberId": config.VAPI_PHONE_NUMBER_ID,
-        "customer": {"number": config.SENIOR_PHONE},
-        "assistant": {
-            "name": "CheckIn",
-            "firstMessage": FIRST.get(language, FIRST["en"]).format(n=name),
-            "model": {
-                "provider": config.VAPI_MODEL_PROVIDER, "model": config.VAPI_MODEL,
-                "messages": [{"role": "system", "content": build_prompt(name, language, history, questions)}],
-                "tools": [{"type": "endCall"}],  # (Vapi rejects a `description` here, despite the docs page)
-            },
-            "voice": {"provider": "openai", "voiceId": "alloy"},
-            "transcriber": {"provider": "deepgram", "language": STT_LANG.get(language, "en")},
-            "endCallMessage": llm.FALLBACK_SAY.get(language, llm.FALLBACK_SAY["en"]),
-            "maxDurationSeconds": 300,   # hard cap; the prompt asks for 6 turns
-            "silenceTimeoutSeconds": 20,
-            # Inline assistants get no Vapi credential on webhooks, so we send our own secret back.
-            "server": {"url": f"{config.PUBLIC_URL}/vapi/end", "headers": {"X-Checkin-Secret": config.VAPI_WEBHOOK_SECRET}},
-            "serverMessages": ["end-of-call-report", "transcript"],
+        "name": "CheckIn",
+        "firstMessage": first,
+        "model": {
+            "provider": config.VAPI_MODEL_PROVIDER, "model": config.VAPI_MODEL,
+            "messages": [{"role": "system", "content": build_prompt(name, language, history, questions)}],
+            "tools": [{"type": "endCall"}],  # (Vapi rejects a `description` here, despite the docs page)
         },
+        "voice": {"provider": "openai", "voiceId": "alloy"},
+        "transcriber": {"provider": "deepgram", "language": STT_LANG.get(language, "en")},
+        "endCallMessage": llm.FALLBACK_SAY.get(language, llm.FALLBACK_SAY["en"]),
+        "maxDurationSeconds": 300,   # hard cap; the prompt asks for 6 turns
+        "silenceTimeoutSeconds": 20,
+        # An inline assistant's webhooks carry no Vapi credential, so we send our own secret back.
+        "server": {"url": f"{config.PUBLIC_URL}/vapi/end", "headers": {"X-Vapi-Secret": config.VAPI_SECRET}},
+        "serverMessages": ["end-of-call-report", "transcript"],
     }
+
+
+def build_request(name: str, language: str, history: list[dict], questions: list[str]) -> dict:
+    """Outbound call request (needs a number that may place outbound calls)."""
+    return {"phoneNumberId": config.VAPI_PHONE_NUMBER_ID, "customer": {"number": config.SENIOR_PHONE},
+            "assistant": build_assistant(name, language, history, questions)}
 
 
 def missing_settings() -> list[str]:
     need = {"VAPI_API_KEY": config.VAPI_API_KEY, "VAPI_PHONE_NUMBER_ID": config.VAPI_PHONE_NUMBER_ID,
             "SENIOR_PHONE": config.SENIOR_PHONE, "PUBLIC_URL": config.PUBLIC_URL,
-            "VAPI_WEBHOOK_SECRET": config.VAPI_WEBHOOK_SECRET}
+            "VAPI_SECRET": config.VAPI_SECRET}
     return [k for k, v in need.items() if not v]
 
 
@@ -87,11 +98,11 @@ def main() -> None:
     sid = memory.senior_id(config.SENIOR_PHONE)
     body = build_request(a.name, config.SENIOR_LANGUAGE, memory.load_history(sid, 7), memory.get_questions(sid))
     if a.dry_run:
-        body["assistant"]["server"]["headers"]["X-Checkin-Secret"] = "***"
+        body["assistant"]["server"]["headers"]["X-Vapi-Secret"] = "***"
         print(json.dumps(body, indent=2, ensure_ascii=False))
         return
     if missing := missing_settings():
-        sys.exit(f"Missing in .env: {', '.join(missing)} (generate the secret with: python -c \"import secrets; print(secrets.token_urlsafe(24))\")")
+        sys.exit(f"Missing in .env: {', '.join(missing)} (generate VAPI_SECRET with: python -c \"import secrets; print(secrets.token_urlsafe(24))\")")
     r = requests.post(API, json=body, headers={"Authorization": f"Bearer {config.VAPI_API_KEY}"}, timeout=30)
     if not r.ok:
         sys.exit(f"Vapi error {r.status_code}: {r.text[:500]}")

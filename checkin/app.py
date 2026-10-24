@@ -3,10 +3,9 @@
 Each Twilio request is independent; the conversation is kept in a small per-call file
 keyed by CallSid (see memory.load_session), so any server instance can handle any request.
 """
-import hmac
 import re
 
-from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request, Response
+from fastapi import BackgroundTasks, FastAPI, Form, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.twiml.voice_response import Gather, VoiceResponse
 
@@ -152,51 +151,3 @@ def sms(From: str = Form(""), Body: str = Form("")):
         memory.add_question(_sid(), Body)
         mr.message(f"Got it, I'll ask {config.SENIOR_NAME} on the next call.")
     return Response(content=str(mr), media_type="application/xml")
-
-
-# --- Vapi: end-of-call report and live transcript events (Vapi runs the call itself) ---
-
-def _vapi_authorized(request: Request) -> None:
-    """Vapi doesn't attach credentials to an inline assistant's webhooks, so vapi_call.py puts our own
-    secret in server.headers. Refuse everything if no secret is configured."""
-    secret = config.VAPI_WEBHOOK_SECRET
-    given = request.headers.get("x-checkin-secret", "")
-    if not secret or not hmac.compare_digest(given, secret):
-        raise HTTPException(status_code=401, detail="bad or missing webhook secret")
-
-
-def _vapi_transcript(messages: list[dict]) -> list[dict]:
-    """Vapi artifact.messages -> our transcript. Keeps only what was said (assistant/user)."""
-    roles = {"assistant": "ai", "bot": "ai", "user": "senior"}
-    out = []
-    for m in messages or []:
-        text = (m.get("message") or m.get("content") or "").strip()
-        if m.get("role") in roles and text:
-            out.append({"role": roles[m["role"]], "text": text})
-    return out
-
-
-@app.post("/vapi/end")
-async def vapi_events(request: Request, bg: BackgroundTasks):
-    """Vapi server messages. end-of-call-report -> summarize, trends, save, alert.
-    transcript (final, from the senior) -> urgent alert right away on a fall / chest pain / breathing."""
-    _vapi_authorized(request)
-    msg = (await request.json()).get("message", {})
-    call_id = (msg.get("call") or {}).get("id") or "vapi-unknown"
-
-    if msg.get("type") == "transcript":
-        text = msg.get("transcript", "")
-        if (msg.get("role") == "user" and msg.get("transcriptType") == "final"
-                and llm.mentions_emergency(text) and notify.configured()):
-            state = memory.load_session(call_id) or _new_state()
-            if not state["urgent_sent"]:
-                state["urgent_sent"] = True
-                memory.save_session(call_id, state)
-                bg.add_task(_alert_urgent, call_id, text)
-    elif msg.get("type") == "end-of-call-report":
-        state = memory.load_session(call_id) or _new_state()
-        if not state["finished"]:
-            state["transcript"] = _vapi_transcript((msg.get("artifact") or {}).get("messages"))
-            memory.save_session(call_id, state)
-            bg.add_task(_finish, call_id)  # summarize can take a few seconds; answer Vapi immediately
-    return {}

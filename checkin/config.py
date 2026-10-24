@@ -28,6 +28,6 @@ NOTIFY_CHANNEL = os.getenv("NOTIFY_CHANNEL", "sms" if TWILIO_SID else "ntfy").lo
 # Vapi (hosted phone-call front end). Vapi runs the live conversation; memory, trends and alerts stay our code.
 VAPI_API_KEY = os.getenv("VAPI_API_KEY", "")
 VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID", "")
-VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "")  # shared secret Vapi sends back on /vapi/end
+VAPI_SECRET = os.getenv("VAPI_SECRET") or os.getenv("VAPI_WEBHOOK_SECRET", "")  # shared secret Vapi sends in X-Vapi-Secret
 VAPI_MODEL_PROVIDER = os.getenv("VAPI_MODEL_PROVIDER", "openai")
 VAPI_MODEL = os.getenv("VAPI_MODEL", "gpt-4o-mini")
