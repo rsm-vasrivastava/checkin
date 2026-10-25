@@ -89,7 +89,7 @@ To use Claude instead, set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`, an
 ```
 Speech output is the macOS `say` command; speech input is [faster-whisper](https://github.com/SYSTRAN/faster-whisper) running offline (downloads a ~140 MB model on first run). It stops listening after a pause, retries once on silence, and ends after 6 turns. In ntfy mode the loop is one-way: use `--question` to queue a caregiver question.
 
-> **Status:** the **inbound** Vapi path is verified with a real call: the senior phones a free Vapi number, the assistant answers by name, asks the check-in questions, and when they hang up our server summarizes, saves and alerts. Outbound calls from a free Vapi number were refused by Vapi (daily outbound limit), so the production design here is "senior calls the number" (or outbound via an imported Twilio number).
+> **Status:** the **inbound** Vapi path (the senior phones a free Vapi number) and **outbound** calls via `vapi_call.py` are both verified with real calls: the assistant answers or calls by name, asks the check-in questions, and when the call ends our server summarizes, saves and alerts.
 
 **Live phone call via Vapi, inbound (verified):** the server for the public tunnel is a *separate minimal app* (`checkin/vapi_app.py`) with one route, `POST /vapi/end`, protected by a shared secret. The admin/Twilio app (`/call`, `/sms`, ...) is never tunneled.
 ```bash
@@ -101,7 +101,7 @@ ngrok http 8000
 # Tab 3: point your Vapi number at us (re-run if PUBLIC_URL changes; --show prints the config)
 .venv/bin/python vapi_setup.py
 ```
-Then call the Vapi number from `SENIOR_PHONE` (other callers hear "this line is private"). Vapi asks our server for the assistant at the start of every call (`assistant-request`), so the prompt always has the latest trend flags and queued caregiver questions. A fall / chest-pain / breathing phrase in the live transcript alerts the caregiver at once; when the call ends the summary and trend flags follow. Free Vapi numbers can't place outbound calls reliably, so `vapi_call.py` (outbound) needs a number imported into Vapi (Twilio, Telnyx or DIDWW).
+Then call the Vapi number from `SENIOR_PHONE` (other callers hear "this line is private"). Vapi asks our server for the assistant at the start of every call (`assistant-request`), so the prompt always has the latest trend flags and queued caregiver questions. A fall / chest-pain / breathing phrase in the live transcript alerts the caregiver at once; when the call ends the summary and trend flags follow. **Outbound daily calls supported via `vapi_call.py` (free Vapi numbers have a daily outbound limit).** With the tunnel and `checkin.vapi_app` running and `PUBLIC_URL` set, `.venv/bin/python vapi_call.py` calls `SENIOR_PHONE` (`--dry-run` prints the request first). It uses the same assistant as inbound calls, except the greeting, and reports to the same `/vapi/end` webhook. If Vapi refuses with a limit error, use inbound instead.
 
 **Live phone call via Twilio webhooks (original path, still works):**
 ```bash
