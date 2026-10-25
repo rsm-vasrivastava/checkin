@@ -17,7 +17,7 @@ def client(monkeypatch):
     monkeypatch.setattr(config, "NOTIFY_CHANNEL", "ntfy")
     monkeypatch.setattr(config, "NTFY_TOPIC", "tt")
     sent = []
-    monkeypatch.setattr(notify, "send", lambda title, body, urgent=False: sent.append((title, body, urgent)))
+    monkeypatch.setattr(notify, "send", lambda title, body, urgent=False, level=None: sent.append((title, body, urgent or level == "urgent")))
     monkeypatch.setattr(llm, "call_model", lambda *a, **k: '{"meds_taken": true, "mood": "ok", "urgency": "ok", "summary_text": "Fine."}')
     from checkin.vapi_app import app
     c = TestClient(app)

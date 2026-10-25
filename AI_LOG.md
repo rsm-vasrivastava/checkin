@@ -116,3 +116,10 @@ We used Claude Code (Sonnet 5.5) as our pair programmer. Entries are appended af
 
 - Check phone-service and API costs and trial limits before the event. We lost about an hour discovering that Twilio's trial no longer includes a number and that we had no LLM API key.
 - Test the riskiest dependency (a real phone call) in the first 30 minutes, and decide on the fallback early.
+
+## Missed check-in alert and clearer ntfy alerts (after the `working-demo` tag)
+- **Asked:** add `check_missed.py` (alert once per day if there is no completed call by `CHECKIN_DEADLINE`, with a `--now` flag, safe to run repeatedly) and clearer ntfy alerts (title, priority 5/4/3, emoji tags, a short body with trend flags as bullets), with tests, without touching the Vapi call flow, `vapi_setup.py` or `voice_mode.py`.
+- **Produced:** `check_missed.py`; an `alerts` marker in the history file for once-a-day alerts; `notify.send(..., level=)` with priority/tag per level and RFC 2047 encoding for non-ASCII titles (`urgent=True` still works, so `voice_mode.py` was not edited); `pipeline.format_ntfy_body()`; 23 new tests (56 total).
+- **Design points:** the alert is recorded only after a successful send, so a failure is retried; a "no response" record does not count as a completed call; SMS text is unchanged (a test pins it).
+- **Caught while verifying:** running the real CLI with `CHECKIN_DEADLINE=6pm` still printed "nothing to do" because the deadline was only parsed when needed; a typo would have stayed hidden until the day it mattered. It is now validated first (with a test). Our own earlier Vapi test also needed its `notify.send` stub updated for the new `level` argument.
+- **Not verified:** a real missed-day ntfy delivery on a phone (only the dry-run against real data, and mocked sends in tests), cron scheduling, and the exact look of the colored tags in the ntfy app. The deadline uses the machine's local time.

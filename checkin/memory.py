@@ -28,6 +28,7 @@ def _load(sid: str) -> dict:
         data = {}
     data.setdefault("calls", [])
     data.setdefault("questions", [])
+    data.setdefault("alerts", {})
     return data
 
 
@@ -62,6 +63,17 @@ def clear_questions(sid: str) -> None:
     """Call after the senior has been asked (end of a completed call)."""
     data = _load(sid)
     data["questions"] = []
+    _save(sid, data)
+
+
+def alert_sent(sid: str, kind: str, day: str) -> bool:
+    """Has this kind of once-a-day alert (e.g. "missed") already gone out on that day?"""
+    return _load(sid)["alerts"].get(kind) == day
+
+
+def mark_alert_sent(sid: str, kind: str, day: str) -> None:
+    data = _load(sid)
+    data["alerts"][kind] = day
     _save(sid, data)
 
 

@@ -23,12 +23,19 @@ def format_summary_sms(name: str, s: dict, urgent: bool = False) -> str:
     return " ".join(p for p in parts if p)[:600]
 
 
+def format_ntfy_body(name: str, s: dict, urgent: bool = False) -> str:
+    """Push-notification body: one summary line, then each trend flag as a bullet."""
+    first = ("URGENT: " if urgent else "") + s.get("summary_text", "")
+    return "\n".join([first] + [f"\u2022 {f}" for f in s.get("trend_flags", [])]).strip()
+
+
 def notify_caregiver(name: str, summary: dict, urgent_already_sent: bool) -> None:
-    """Alert the caregiver. urgent_already_sent avoids a second URGENT alert if we alerted mid-call."""
-    from checkin import notify
+    """Alert the caregiver. urgent_already_sent avoids a second URGENT prefix if we alerted mid-call."""
+    from checkin import config, notify
     urgent = summary["urgency"] == "urgent" and not urgent_already_sent
-    notify.send(f"CheckIn: {name} ({summary['urgency']})", format_summary_sms(name, summary, urgent),
-                urgent=summary["urgency"] == "urgent")
+    body = (format_ntfy_body(name, summary, urgent) if config.NOTIFY_CHANNEL == "ntfy"
+            else format_summary_sms(name, summary, urgent))
+    notify.send(f"CheckIn: {name}", body, level=summary["urgency"])
 
 
 def urgent_text(name: str, quote: str) -> str:

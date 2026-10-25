@@ -31,3 +31,6 @@ VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID", "")
 VAPI_SECRET = os.getenv("VAPI_SECRET") or os.getenv("VAPI_WEBHOOK_SECRET", "")  # shared secret Vapi sends in X-Vapi-Secret
 VAPI_MODEL_PROVIDER = os.getenv("VAPI_MODEL_PROVIDER", "openai")
 VAPI_MODEL = os.getenv("VAPI_MODEL", "gpt-4o-mini")
+
+# Missed check-in alert (check_missed.py): local time HH:MM after which "no call today" is worth a text.
+CHECKIN_DEADLINE = os.getenv("CHECKIN_DEADLINE", "18:00")

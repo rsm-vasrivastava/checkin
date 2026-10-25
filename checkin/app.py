@@ -61,7 +61,7 @@ def _alert_urgent(call_sid: str, quote: str) -> None:
     """Text the caregiver the moment an emergency is mentioned (background task).
     On failure, clear the flag so the end-of-call SMS carries the URGENT prefix instead."""
     try:
-        notify.send("URGENT - CheckIn", pipeline.urgent_text(config.SENIOR_NAME, quote), urgent=True)
+        notify.send(f"CheckIn: {config.SENIOR_NAME}", pipeline.urgent_text(config.SENIOR_NAME, quote), level="urgent")
     except Exception as e:
         print("urgent SMS failed:", e)
         state = memory.load_session(call_sid)
