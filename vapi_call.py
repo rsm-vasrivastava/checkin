@@ -1,10 +1,12 @@
-"""Place today's check-in call through Vapi (hosted phone calls). Needs the server running and PUBLIC_URL set.
+"""Place today's check-in call through Vapi (OUTBOUND). Needs the tunnel and `checkin.vapi_app` running and PUBLIC_URL set.
 
   python vapi_call.py            # call SENIOR_PHONE
   python vapi_call.py --dry-run  # print the request (secrets hidden) without calling
 
 Vapi runs the live voice conversation from the assistant defined below. Our code still owns memory,
-trend detection and caregiver alerts: Vapi POSTs the transcript to PUBLIC_URL/vapi/end (checkin/app.py).
+trend detection and caregiver alerts: Vapi POSTs the transcript to PUBLIC_URL/vapi/end (checkin/vapi_app.py).
+The assistant is the same one inbound calls get (build_assistant), except for the greeting. Free Vapi numbers have a
+daily outbound call limit; if Vapi refuses with a limit error, nothing is wrong with the code: use inbound.
 Request format: https://docs.vapi.ai/api-reference/calls/create
 """
 import argparse

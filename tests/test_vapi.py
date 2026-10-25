@@ -82,3 +82,16 @@ def test_live_urgent_alert_once_then_report_saved_without_second_urgent_prefix(c
 def test_unanswered_call_is_recorded_as_no_response(client):
     post(client, {"type": "end-of-call-report", "endedReason": "customer-did-not-answer", "call": {"id": "C4"}, "artifact": {"messages": []}})
     assert memory.load_history(SID)[-1]["concerns"] == ["No response to the call"]
+
+
+def test_outbound_assistant_is_the_inbound_assistant_except_for_the_greeting(client):
+    """vapi_call.py (outbound) and the inbound assistant-request must never drift apart."""
+    import vapi_call
+    memory.save_call(SID, {"summary_text": "knee sore", "trend_flags": ["pain reported 3 days in a row"], "urgency": "watch"})
+    h, q = memory.load_history(SID), memory.get_questions(SID)
+    out = vapi_call.build_request("Margaret", "en", h, q)
+    inbound = vapi_call.build_assistant("Margaret", "en", h, q, inbound=True)
+    assert [k for k in out["assistant"] if out["assistant"][k] != inbound[k]] == ["firstMessage"]
+    assert "daily check-in" in out["assistant"]["firstMessage"]
+    assert out["customer"]["number"] == "+1 (555) 111-0000" and set(out) == {"assistant", "customer", "phoneNumberId"}
+    assert out["assistant"]["server"]["headers"]["X-Vapi-Secret"] == "s3cret"
